@@ -410,7 +410,23 @@ export default function App() {
 
   const addSale = (o) => { setSales((p) => [o, ...p]); setStock((s) => { const n = { ...s }; o.lines.forEach((l) => { n[`${l.sku}-${o.branchId}`] = (n[`${l.sku}-${o.branchId}`] || 0) - l.qty; }); return n; }); setStockHistory((h) => [...o.lines.map((l) => ({ time: now(), doc: o.id, sku: l.sku, branch: o.branchId, type: "Xuất bán", qty: -l.qty, price: l.price })), ...h]); };
   const doTransfer = (sku, from, to, qty) => { setStock((s) => ({ ...s, [`${sku}-${from}`]: (s[`${sku}-${from}`] || 0) - qty, [`${sku}-${to}`]: (s[`${sku}-${to}`] || 0) + qty })); setStockHistory((h) => [{ time: now(), doc: rnd("CK"), sku, branch: to, type: "Nhập kho", qty, price: 0 }, ...h]); };
-  const importProducts = (rows, branchId, supplierId) => { setProducts((prev) => { const map = new Map(prev.map((p) => [p.id, p])); rows.forEach((r) => map.set(r.id, { ...(map.get(r.id) || { artist: "", img: IMG(r.name.slice(0, 6)), createdAt: today() }), ...r, updatedAt: today() })); return Array.from(map.values()); }); const id = rnd("PN"); setInbounds((p) => [{ id, date: today(), supplier: supplierId, branchId, discount: 0, paid: 0, lines: rows.map((r) => ({ sku: r.id, qty: 0, price: r.cost })) }, ...p]); };
+  const importProducts = (rows, branchId, supplierId) => {
+    // Tính giá vốn bình quân di động (toàn hệ thống)
+    const avgCost = {};
+    rows.forEach((r) => {
+      const old = products.find((p) => p.id === r.id);
+      const oldQty = Object.entries(stock).filter(([k]) => k.startsWith(`${r.id}-`)).reduce((s, [, v]) => s + v, 0);
+      const oldCost = old ? (old.cost || 0) : 0;
+      const newQty = r.qty || 0;
+      const total = oldQty + newQty;
+      avgCost[r.id] = total > 0 ? Math.round((oldQty * oldCost + newQty * (r.cost || 0)) / total) : (r.cost || 0);
+    });
+    setProducts((prev) => { const map = new Map(prev.map((p) => [p.id, p])); rows.forEach((r) => { const { qty, cost, ...pr } = r; map.set(r.id, { ...(map.get(r.id) || { artist: "", img: IMG(r.name.slice(0, 6)), createdAt: today() }), ...pr, cost: avgCost[r.id], updatedAt: today() }); }); return Array.from(map.values()); });
+    setStock((prev) => { const s = { ...prev }; rows.forEach((r) => { const k = `${r.id}-${branchId}`; s[k] = (s[k] || 0) + (r.qty || 0); }); return s; });
+    const id = rnd("PN");
+    setInbounds((p) => [{ id, date: today(), supplier: supplierId, branchId, discount: 0, paid: 0, lines: rows.map((r) => ({ sku: r.id, qty: r.qty || 0, price: r.cost })) }, ...p]);
+    setStockHistory((p) => [...rows.map((r) => ({ time: now(), doc: id, sku: r.id, branch: branchId, type: "Nhập kho", qty: r.qty || 0, price: r.cost })), ...p]);
+  };
   const addSupplier = (f) => { const id = "NCC" + String(suppliers.length + 1).padStart(2, "0"); setSuppliers((p) => [...p, { id, ...f, debt: 0 }]); return id; };
 
   const store = { me, page, nav, openMenus, toggleMenu, toast, isAdmin, canSeeCost, branches, setBranches, products, setProducts, visProducts, customers, setCustomers, suppliers, setSuppliers, addSupplier, inbounds, setInbounds, visInbounds, sales, setSales, visSales, stock, setStock, employees, setEmployees, stockHistory, addSale, doTransfer, importProducts };
