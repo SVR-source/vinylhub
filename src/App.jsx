@@ -1,4 +1,5 @@
-import React, { useState, useContext, createContext } from "react";
+import React, { useState, useEffect, useContext, createContext } from "react";
+import { loadAll, saveBranches, saveEmployees, saveProducts, saveCustomers, saveSuppliers, saveInbounds, saveSales, saveStock, saveHistory } from "./db";
 import {
   LayoutDashboard, ShoppingCart, Disc3, Users, Truck, Package, Wallet,
   UserCog, BarChart3, Plus, Search, Menu, X, ChevronDown, UploadCloud,
@@ -263,6 +264,13 @@ const Customers = () => {
     <Modal open={!!edit} onClose={() => setEdit(null)} title={`Sửa khách hàng ${edit?.id}`}>{edit && <div className="space-y-4"><Input label="Tên *" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /><Input label="Điện thoại" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /><Input label="Email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /><Select label="Nhóm" value={edit.group} onChange={(e) => setEdit({ ...edit, group: e.target.value })}><option>Mới</option><option>Thân thiết</option><option>VIP</option></Select><Input label="Địa chỉ" value={edit.address} onChange={(e) => setEdit({ ...edit, address: e.target.value })} /><Input label="Công nợ" type="number" value={edit.debt} onChange={(e) => setEdit({ ...edit, debt: e.target.value })} /><div className="flex justify-end gap-3"><Btn variant="ghost" onClick={() => setEdit(null)}>Hủy</Btn><Btn onClick={save}>Lưu thay đổi</Btn></div></div>}</Modal>
   </div>;
 };
+const CustomerNew = () => {
+  const { customers, setCustomers, branches, toast, nav, me } = useStore();
+  const [f, setF] = useState({ name: "", phone: "", email: "", address: "", group: "Mới", branchId: me.branchId });
+  const set = (k, v) => setF({ ...f, [k]: v });
+  const save = () => { if (!f.name) return toast("Nhập tên khách hàng!"); const id = "KH" + String(customers.length + 1).padStart(2, "0"); setCustomers([...customers, { id, ...f, debt: 0 }]); toast("Đã thêm " + id); nav("customers"); };
+  return <div className="max-w-2xl"><PageHead title="Thêm khách hàng" /><Card className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4"><Input label="Tên khách hàng *" value={f.name} onChange={(e) => set("name", e.target.value)} /><Input label="Số điện thoại" value={f.phone} onChange={(e) => set("phone", e.target.value)} /><Input label="Email" value={f.email} onChange={(e) => set("email", e.target.value)} /><Select label="Nhóm khách" value={f.group} onChange={(e) => set("group", e.target.value)}>{["Mới", "Thân thiết", "VIP"].map((g) => <option key={g}>{g}</option>)}</Select><Select label="Chi nhánh" value={f.branchId} onChange={(e) => set("branchId", e.target.value)}>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select><div className="sm:col-span-2"><Input label="Địa chỉ" value={f.address} onChange={(e) => set("address", e.target.value)} /></div><div className="sm:col-span-2 flex justify-end gap-3"><Btn variant="ghost" onClick={() => nav("customers")}>Hủy</Btn><Btn onClick={save}>Lưu</Btn></div></Card></div>;
+};
 const Suppliers = () => {
   const { suppliers, setSuppliers, inbounds, nav, toast } = useStore();
   const { sel, toggle, toggleAll, allChecked, setSel } = useSel(suppliers);
@@ -338,20 +346,50 @@ export default function App() {
   const [sidebar, setSidebar] = useState(false);
   const [openMenus, setOpenMenus] = useState(["Sản phẩm"]);
   const [toastMsg, setToastMsg] = useState("");
-  const [branches, setBranches] = usePersist("vh_branches", seedBranches);
-  const [products, setProducts] = usePersist("vh_products", seedProducts);
-  const [customers, setCustomers] = usePersist("vh_customers", seedCustomers);
-  const [suppliers, setSuppliers] = usePersist("vh_suppliers", seedSuppliers);
-  const [inbounds, setInbounds] = usePersist("vh_inbounds", seedInbounds);
-  const [sales, setSales] = usePersist("vh_sales", seedSales);
-  const [stock, setStock] = usePersist("vh_stock", seedStock);
-  const [employees, setEmployees] = usePersist("vh_employees", seedEmployees);
-  const [stockHistory, setStockHistory] = usePersist("vh_history", seedHistory);
+  const [loaded, setLoaded] = useState(false);
+
+  const [branches, setBranches] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [inbounds, setInbounds] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [stock, setStock] = useState({});
+  const [employees, setEmployees] = useState([]);
+  const [stockHistory, setStockHistory] = useState([]);
+
+  // 1) Tải toàn bộ dữ liệu từ Supabase khi mở app
+  useEffect(() => {
+    (async () => {
+      try {
+        const d = await loadAll();
+        setBranches(d.branches); setEmployees(d.employees); setProducts(d.products);
+        setCustomers(d.customers); setSuppliers(d.suppliers); setInbounds(d.inbounds);
+        setSales(d.sales); setStock(d.stock); setStockHistory(d.stockHistory);
+        setLoaded(true);
+      } catch (e) {
+        console.error("Lỗi tải Supabase:", e);
+        alert("Không tải được dữ liệu Supabase. Kiểm tra kết nối / đã tắt RLS chưa?");
+      }
+    })();
+  }, []);
+
+  // 2) Tự động LƯU lên Supabase mỗi khi dữ liệu thay đổi
+  useEffect(() => { if (loaded) saveBranches(branches); }, [branches, loaded]);
+  useEffect(() => { if (loaded) saveEmployees(employees); }, [employees, loaded]);
+  useEffect(() => { if (loaded) saveProducts(products); }, [products, loaded]);
+  useEffect(() => { if (loaded) saveCustomers(customers); }, [customers, loaded]);
+  useEffect(() => { if (loaded) saveSuppliers(suppliers); }, [suppliers, loaded]);
+  useEffect(() => { if (loaded) saveInbounds(inbounds); }, [inbounds, loaded]);
+  useEffect(() => { if (loaded) saveSales(sales); }, [sales, loaded]);
+  useEffect(() => { if (loaded) saveStock(stock); }, [stock, loaded]);
+  useEffect(() => { if (loaded) saveHistory(stockHistory); }, [stockHistory, loaded]);
 
   const toast = (m) => { setToastMsg(m); setTimeout(() => setToastMsg(""), 2500); };
   const nav = (p) => { setPage(p); setSidebar(false); };
   const toggleMenu = (l) => setOpenMenus((o) => o.includes(l) ? o.filter((x) => x !== l) : [...o, l]);
 
+  if (!loaded) return <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-500 text-sm">Đang tải dữ liệu từ đám mây…</div>;
   if (!me) return <><style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`}</style><Login onLogin={setMe} employees={employees} /></>;
 
   const isAdmin = me.role === "Admin";
