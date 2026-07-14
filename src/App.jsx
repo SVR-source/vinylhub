@@ -404,19 +404,11 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [stockHistory, setStockHistory] = useState([]);
 
-  // 1) Tải toàn bộ dữ liệu từ Supabase khi mở app
+// 1) Tải toàn bộ dữ liệu từ Supabase khi mở app
   useEffect(() => {
     (async () => {
       try {
         const d = await loadAll();
-        // Đồng bộ quyền của tài khoản đang đăng nhập với dữ liệu mới nhất
-useEffect(() => {
-  if (!loaded || !me) return;
-  const fresh = employees.find(e => e.id === me.id);
-  if (fresh && (fresh.role !== me.role || fresh.branchId !== me.branchId)) {
-    setMe({ ...me, role: fresh.role, branchId: fresh.branchId });
-  }
-}, [employees, loaded]);
         setBranches(d.branches); setEmployees(d.employees); setProducts(d.products);
         setCustomers(d.customers); setSuppliers(d.suppliers); setInbounds(d.inbounds);
         setSales(d.sales); setStock(d.stock); setStockHistory(d.stockHistory);
@@ -438,6 +430,14 @@ useEffect(() => {
   useEffect(() => { if (loaded) saveSales(sales); }, [sales, loaded]);
   useEffect(() => { if (loaded) saveStock(stock); }, [stock, loaded]);
   useEffect(() => { if (loaded) saveHistory(stockHistory); }, [stockHistory, loaded]);
+  // 3) Đồng bộ quyền tài khoản đang đăng nhập với dữ liệu mới nhất
+  useEffect(() => {
+    if (!loaded || !me) return;
+    const fresh = employees.find((e) => e.id === me.id);
+    if (fresh && (fresh.role !== me.role || fresh.branchId !== me.branchId)) {
+      setMe({ ...me, role: fresh.role, branchId: fresh.branchId });
+    }
+  }, [employees, loaded]);
 
   const toast = (m) => { setToastMsg(m); setTimeout(() => setToastMsg(""), 2500); };
   const nav = (p) => { setPage(p); setSidebar(false); };
