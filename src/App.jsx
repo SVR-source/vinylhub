@@ -12,6 +12,23 @@ import {
 } from "recharts";
 
 /* ============ HELPERS ============ */
+const resizeImage = (file, max = 600) => new Promise((resolve) => {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h && w > max) { h = h * max / w; w = max; }
+      else if (h > max) { w = w * max / h; h = max; }
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.8)); // nén 80%, tối đa 600px
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
 const fmt = (n) => (Number(n) || 0).toLocaleString("vi-VN") + "₫";
 const today = () => new Date().toISOString().slice(0, 10);
 const now = () => new Date().toLocaleString("vi-VN");
@@ -126,9 +143,14 @@ const NAV = [
   { label: "Quản lý nhân viên", icon: UserCog, adminOnly: true, children: [{ key: "employees", label: "Danh sách nhân viên" }, { key: "roles", label: "Phân quyền nhân viên" }] },
   { key: "reports", label: "Báo cáo", icon: BarChart3, adminOnly: true },
 ];
+const SALES_KEYS = ["dashboard", "sales", "sale-new", "customers", "customer-new"];
+const salesCanSee = (node) => node.children ? node.children.some(salesCanSee) : SALES_KEYS.includes(node.key);
+
 const NavNode = ({ node, depth = 0 }) => {
-  const { page, nav, openMenus, toggleMenu, isAdmin } = useStore();
+  const { page, nav, openMenus, toggleMenu, isAdmin, me } = useStore();
+  const isSales = me.role !== "Admin";
   if (node.adminOnly && !isAdmin) return null;
+  if (isSales && !salesCanSee(node)) return null; // Sales chỉ thấy đơn hàng + khách hàng
   const Ic = node.icon;
   if (!node.children) {
     const active = page === node.key;
@@ -222,10 +244,10 @@ const Products = () => {
 
 const ProductNew = () => {
   const { products, setProducts, branches, toast, nav, me, canSeeCost } = useStore();
-  const [f, setF] = useState({ name: "", artist: "", brand: "", barcode: "", desc: "", group: GROUPS[0], cost: 0, price: 0, branchId: me.branchId });
+  const [f, setF] = useState({ name: "", artist: "", brand: "", barcode: "", desc: "", group: GROUPS[0], cost: 0, price: 0, branchId: me.branchId, img: "" });
   const set = (k, v) => setF({ ...f, [k]: v });
-  const save = () => { if (!f.name) return toast("Nhập tên album!"); const id = "SKU" + String(products.length + 1).padStart(3, "0"); setProducts([...products, { id, ...f, cost: Number(f.cost), price: Number(f.price), img: IMG(f.name.slice(0, 6)), createdAt: today(), updatedAt: today() }]); toast("Đã tạo " + id); nav("products"); };
-  return <div className="max-w-2xl"><PageHead title="Tạo sản phẩm mới" /><Card className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4"><Input label="Tên album *" value={f.name} onChange={(e) => set("name", e.target.value)} /><Input label="Nghệ sĩ" value={f.artist} onChange={(e) => set("artist", e.target.value)} /><Input label="Nhãn hiệu (hãng đĩa)" value={f.brand} onChange={(e) => set("brand", e.target.value)} /><Input label="Barcode" value={f.barcode} onChange={(e) => set("barcode", e.target.value)} /><Select label="Loại sản phẩm" value={f.group} onChange={(e) => set("group", e.target.value)}>{GROUPS.map((g) => <option key={g}>{g}</option>)}</Select><Select label="Chi nhánh" value={f.branchId} onChange={(e) => set("branchId", e.target.value)}>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>{canSeeCost && <Input label="Giá nhập" type="number" value={f.cost} onChange={(e) => set("cost", e.target.value)} />}<Input label="Giá bán lẻ" type="number" value={f.price} onChange={(e) => set("price", e.target.value)} /><div className="sm:col-span-2"><Input label="Mô tả" value={f.desc} onChange={(e) => set("desc", e.target.value)} /></div><div className="sm:col-span-2 flex justify-end gap-3"><Btn variant="ghost" onClick={() => nav("products")}>Hủy</Btn><Btn onClick={save}>Lưu</Btn></div></Card></div>;
+  const save = () => { if (!f.name) return toast("Nhập tên album!"); const id = "SKU" + String(products.length + 1).padStart(3, "0"); setProducts([...products, { id, ...f, cost: Number(f.cost), price: Number(f.price), img: f.img || IMG(f.name.slice(0, 6)), createdAt: today(), updatedAt: today() }]); toast("Đã tạo " + id); nav("products"); };
+  return <div className="max-w-2xl"><PageHead title="Tạo sản phẩm mới" /><Card className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-4"><Input label="Tên album *" value={f.name} onChange={(e) => set("name", e.target.value)} /><Input label="Nghệ sĩ" value={f.artist} onChange={(e) => set("artist", e.target.value)} /><Input label="Nhãn hiệu (hãng đĩa)" value={f.brand} onChange={(e) => set("brand", e.target.value)} /><Input label="Barcode" value={f.barcode} onChange={(e) => set("barcode", e.target.value)} /><Select label="Loại sản phẩm" value={f.group} onChange={(e) => set("group", e.target.value)}>{GROUPS.map((g) => <option key={g}>{g}</option>)}</Select><Select label="Chi nhánh" value={f.branchId} onChange={(e) => set("branchId", e.target.value)}>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>{canSeeCost && <Input label="Giá nhập" type="number" value={f.cost} onChange={(e) => set("cost", e.target.value)} />}<Input label="Giá bán lẻ" type="number" value={f.price} onChange={(e) => set("price", e.target.value)} /><div className="sm:col-span-2"><Input label="Mô tả" value={f.desc} onChange={(e) => set("desc", e.target.value)} /></div><div className="sm:col-span-2"><label className="text-sm font-medium text-slate-600">Hình ảnh sản phẩm</label><div className="mt-1 flex items-center gap-4">{f.img && <img src={f.img} alt="" className="w-24 h-24 object-cover rounded-xl border" />}<label className="cursor-pointer px-4 py-2 rounded-xl border border-dashed border-slate-300 text-sm text-slate-500 hover:bg-slate-50">📷 Chọn ảnh<input type="file" accept="image/*" className="hidden" onChange={async (e) => { const file = e.target.files[0]; if (file) set("img", await resizeImage(file)); }} /></label></div></div><div className="sm:col-span-2 flex justify-end gap-3"><Btn variant="ghost" onClick={() => nav("products")}>Hủy</Btn><Btn onClick={save}>Lưu</Btn></div></Card></div>;
 };
 
 /* ============ NHẬP HÀNG ============ */
@@ -388,6 +410,14 @@ export default function App() {
     (async () => {
       try {
         const d = await loadAll();
+        // Đồng bộ quyền của tài khoản đang đăng nhập với dữ liệu mới nhất
+useEffect(() => {
+  if (!loaded || !me) return;
+  const fresh = employees.find(e => e.id === me.id);
+  if (fresh && (fresh.role !== me.role || fresh.branchId !== me.branchId)) {
+    setMe({ ...me, role: fresh.role, branchId: fresh.branchId });
+  }
+}, [employees, loaded]);
         setBranches(d.branches); setEmployees(d.employees); setProducts(d.products);
         setCustomers(d.customers); setSuppliers(d.suppliers); setInbounds(d.inbounds);
         setSales(d.sales); setStock(d.stock); setStockHistory(d.stockHistory);
@@ -430,7 +460,23 @@ export default function App() {
   const visInbounds = seeAll ? inbounds : inbounds.filter((ib) => ib.branchId === me.branchId);
 
   const addSale = (o) => { setSales((p) => [o, ...p]); setStock((s) => { const n = { ...s }; o.lines.forEach((l) => { n[`${l.sku}-${o.branchId}`] = (n[`${l.sku}-${o.branchId}`] || 0) - l.qty; }); return n; }); setStockHistory((h) => [...o.lines.map((l) => ({ time: now(), doc: o.id, sku: l.sku, branch: o.branchId, type: "Xuất bán", qty: -l.qty, price: l.price })), ...h]); };
-  const doTransfer = (sku, from, to, qty) => { setStock((s) => ({ ...s, [`${sku}-${from}`]: (s[`${sku}-${from}`] || 0) - qty, [`${sku}-${to}`]: (s[`${sku}-${to}`] || 0) + qty })); setStockHistory((h) => [{ time: now(), doc: rnd("CK"), sku, branch: to, type: "Nhập kho", qty, price: 0 }, ...h]); };
+const doTransfer = (sku, from, to, qty) => {
+  const n = Number(qty) || 0;
+  if (n <= 0 || from === to) return;
+  setStock(prev => {
+    const cur = { ...prev };
+    const k1 = `${sku}-${from}`, k2 = `${sku}-${to}`;
+    cur[k1] = (cur[k1] || 0) - n;   // trừ kho gửi
+    cur[k2] = (cur[k2] || 0) + n;   // cộng kho nhận
+    return cur;
+  });
+  const doc = rnd("CK");
+  setStockHistory(prev => [
+    { time: now(), doc, sku, branch: from, type: "Chuyển đi", qty: -n, price: 0 },
+    { time: now(), doc, sku, branch: to,   type: "Nhập kho",  qty:  n, price: 0 },
+    ...prev
+  ]);
+};
   const importProducts = (rows, branchId, supplierId) => {
     // Tính giá vốn bình quân di động (toàn hệ thống)
     const avgCost = {};
