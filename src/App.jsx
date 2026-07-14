@@ -143,7 +143,7 @@ const NAV = [
   { label: "Quản lý nhân viên", icon: UserCog, adminOnly: true, children: [{ key: "employees", label: "Danh sách nhân viên" }, { key: "roles", label: "Phân quyền nhân viên" }] },
   { key: "reports", label: "Báo cáo", icon: BarChart3, adminOnly: true },
 ];
-const SALES_KEYS = ["dashboard", "sales", "sale-new", "customers", "customer-new"];
+const SALES_KEYS = ["dashboard", "sales", "sale-new", "customers", "customer-new", "products"];
 const salesCanSee = (node) => node.children ? node.children.some(salesCanSee) : SALES_KEYS.includes(node.key);
 
 const NavNode = ({ node, depth = 0 }) => {
